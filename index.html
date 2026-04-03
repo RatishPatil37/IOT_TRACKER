@@ -598,6 +598,30 @@ setInterval(() => {
 let map, marker, trailPolyline, trailCoords = [];
 let lastHeading = 0;
 
+// ── GPS CHANGE DETECTION ──
+// Tracks last known GPS position to detect real movement
+let lastKnownLat = null;
+let lastKnownLon = null;
+const MIN_MOVE_METERS = 3; // ignore GPS updates less than 3 metres apart
+
+// Haversine distance in metres between two lat/lon points
+function gpsDistanceMeters(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+// Returns true only if GPS position has actually changed meaningfully
+function gpsActuallyMoved(lat, lon) {
+  if (lastKnownLat === null) return true; // first fix
+  const dist = gpsDistanceMeters(lastKnownLat, lastKnownLon, lat, lon);
+  return dist >= MIN_MOVE_METERS;
+}
+
 function loadGoogleMaps() {
   const script = document.createElement('script');
   script.src = `https://maps.googleapis.com/maps/api/js?key=${GMAPS_KEY}&callback=initMap`;
@@ -820,26 +844,38 @@ function updateUI(data) {
   flashCard('card-speed');
   flashCard('coords-box');
 
-  // Map marker
-  if (hasFix && lat !== 0 && lon !== 0) {
-    const newPos = new google.maps.LatLng(lat, lon);
-    const prevPos = trailCoords.length
-      ? trailCoords[trailCoords.length - 1]
-      : null;
+  // Map marker — ONLY update if GPS coordinates actually changed
+  // This prevents DHT22/sensor updates from moving the marker
+  if (hasFix && lat !== 0 && lon !== 0 && gpsActuallyMoved(lat, lon)) {
 
-    const heading = prevPos ? calcHeading(
-      { lat: prevPos.lat(), lng: prevPos.lng() },
+    const newPos = new google.maps.LatLng(lat, lon);
+
+    // Calculate heading from previous real GPS position
+    const heading = (lastKnownLat !== null) ? calcHeading(
+      { lat: lastKnownLat, lng: lastKnownLon },
       { lat, lng: lon }
     ) : lastHeading;
 
+    // Update last known GPS position
+    lastKnownLat = lat;
+    lastKnownLon = lon;
+
     animateMarker(newPos, heading);
 
-    // Trail
+    // Trail — only real GPS movement adds points
     trailCoords.push(newPos);
     if (trailCoords.length > TRAIL_MAX_PTS)
       trailCoords.shift();
     trailPolyline.setPath(trailCoords);
     setVal('trail-info', `Trail: ${trailCoords.length} pts`);
+
+  } else if (hasFix && lat !== 0 && lon !== 0 && lastKnownLat === null) {
+    // First fix — place marker without animating
+    lastKnownLat = lat;
+    lastKnownLon = lon;
+    marker.setPosition(new google.maps.LatLng(lat, lon));
+    marker.setIcon(carMarkerIcon(0));
+    map.panTo(new google.maps.LatLng(lat, lon));
   }
 }
 
