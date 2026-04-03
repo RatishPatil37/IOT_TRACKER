@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>IoT Live Tracker</title>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+
+  <style>
+    :root {
+      --bg:        #0a0d13;
+      --panel:     #111520;
+      --border:    #1e2535;
+      --accent:    #00e5ff;
+      --accent2:   #ff6b35;
+      --green:     #00ff88;
+      --yellow:    #ffd600;
+      --red:       #ff3d5a;
+      --text:      #e8edf5;
+      --muted:     #5a6480;
+      --card:      #161c2d;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Rajdhani', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── TOP BAR ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 20px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      z-index: 100;
+      flex-shrink: 0;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logo-icon {
+      width: 32px; height: 32px;
+      background: var(--accent);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+    }
+
+    .logo-text {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: var(--text);
+    }
+
+    .logo-text span { color: var(--accent); }
+
+    .header-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .pulse-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.8); }
+    }
+
+    .clock {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      color: var(--accent);
+      letter-spacing: 1px;
+    }
+
+    /* ── MAIN LAYOUT ── */
+    .main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── LEFT SIDEBAR ── */
+    .sidebar {
+      width: 280px;
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      flex-shrink: 0;
+    }
+
+    .sidebar::-webkit-scrollbar { width: 4px; }
+    .sidebar::-webkit-scrollbar-track { background: transparent; }
+    .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .section-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      color: var(--muted);
+      padding: 16px 16px 8px;
+      text-transform: uppercase;
+    }
+
+    /* ── STAT CARDS ── */
+    .stat-card {
+      margin: 4px 12px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.3s;
+    }
+
+    .stat-card::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 3px;
+      background: var(--accent);
+      border-radius: 3px 0 0 3px;
+    }
+
+    .stat-card.green::before  { background: var(--green); }
+    .stat-card.yellow::before { background: var(--yellow); }
+    .stat-card.red::before    { background: var(--red); }
+    .stat-card.orange::before { background: var(--accent2); }
+
+    .stat-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+
+    .stat-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 22px;
+      font-weight: 500;
+      color: var(--text);
+      line-height: 1;
+    }
+
+    .stat-value.big { font-size: 28px; }
+    .stat-value .unit { font-size: 12px; color: var(--muted); margin-left: 4px; }
+
+    .stat-sub {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 4px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* ── STATUS ROW ── */
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 4px 12px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+    }
+
+    .status-indicator {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .status-indicator.online  { background: var(--green); animation: pulse 2s infinite; }
+    .status-indicator.offline { background: var(--red); }
+    .status-indicator.warning { background: var(--yellow); }
+
+    .status-label { font-size: 12px; color: var(--muted); flex: 1; letter-spacing: 0.5px; }
+    .status-val   { font-size: 12px; font-family: 'JetBrains Mono', monospace; color: var(--text); }
+
+    /* ── COORDS BOX ── */
+    .coords-box {
+      margin: 4px 12px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 16px;
+    }
+
+    .coord-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 3px 0;
+    }
+
+    .coord-key {
+      font-size: 10px;
+      letter-spacing: 1px;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    .coord-val {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      color: var(--accent);
+    }
+
+    /* ── LAST UPDATE ── */
+    .last-update {
+      margin: 4px 12px 12px;
+      padding: 8px 14px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .last-update .lu-label { font-size: 10px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+    .last-update .lu-val   { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--green); }
+
+    /* ── MAP AREA ── */
+    .map-container {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* ── MAP OVERLAY BADGE ── */
+    .map-badge {
+      position: absolute;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(10,13,19,0.92);
+      border: 1px solid var(--border);
+      border-radius: 30px;
+      padding: 6px 16px;
+      font-size: 12px;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--accent);
+      letter-spacing: 1px;
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      z-index: 10;
+      white-space: nowrap;
+    }
+
+    .map-badge .badge-dot {
+      width: 6px; height: 6px;
+      background: var(--green);
+      border-radius: 50%;
+      animation: pulse 1.5s infinite;
+    }
+
+    /* ── NO FIX OVERLAY ── */
+    #no-fix-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(10,13,19,0.75);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+      backdrop-filter: blur(4px);
+      transition: opacity 0.5s;
+    }
+
+    #no-fix-overlay.hidden { opacity: 0; pointer-events: none; }
+
+    .no-fix-icon { font-size: 48px; margin-bottom: 12px; }
+
+    .no-fix-title {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: 3px;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .no-fix-sub {
+      font-size: 13px;
+      color: var(--muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .sats-badge {
+      margin-top: 16px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 6px 20px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      color: var(--yellow);
+    }
+
+    /* ── BOTTOM RIGHT SPEED WIDGET ── */
+    .speed-widget {
+      position: absolute;
+      bottom: 24px;
+      right: 20px;
+      background: rgba(10,13,19,0.92);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px 20px;
+      text-align: center;
+      backdrop-filter: blur(8px);
+      z-index: 10;
+      min-width: 100px;
+    }
+
+    .speed-num {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 36px;
+      font-weight: 500;
+      color: var(--accent);
+      line-height: 1;
+    }
+
+    .speed-unit {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
+
+    /* ── TRAIL LINE color ── */
+    .trail-info {
+      position: absolute;
+      bottom: 24px;
+      left: 14px;
+      background: rgba(10,13,19,0.88);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px 14px;
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--muted);
+      backdrop-filter: blur(8px);
+      z-index: 10;
+    }
+
+    /* ── CONNECTING STATE ── */
+    #connecting {
+      position: fixed;
+      inset: 0;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      transition: opacity 0.6s;
+    }
+
+    #connecting.hidden { opacity: 0; pointer-events: none; }
+
+    .spinner {
+      width: 48px; height: 48px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 20px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .connecting-text {
+      font-size: 14px;
+      letter-spacing: 3px;
+      color: var(--muted);
+      text-transform: uppercase;
+    }
+
+    /* ── FLASH on update ── */
+    @keyframes flash {
+      0%, 100% { background: var(--card); }
+      50% { background: rgba(0,229,255,0.08); }
+    }
+
+    .flash { animation: flash 0.4s ease; }
+
+    /* ── SCROLLBAR ── */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); }
+  </style>
+</head>
+<body>
+
+<!-- Connecting screen -->
+<div id="connecting">
+  <div class="spinner"></div>
+  <div class="connecting-text">Connecting to tracker...</div>
+</div>
+
+<!-- Header -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">🛰️</div>
+    <div class="logo-text">IOT<span>TRACKER</span></div>
+  </div>
+  <div class="header-status">
+    <div class="pulse-dot" id="hdr-dot"></div>
+    <span id="hdr-status">CONNECTING</span>
+  </div>
+  <div class="clock" id="clock">--:--:--</div>
+</header>
+
+<!-- Main -->
+<div class="main">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+
+    <div class="section-label">Motion</div>
+
+    <div class="stat-card orange" id="card-speed">
+      <div class="stat-label">Speed</div>
+      <div class="stat-value big" id="val-speed">--<span class="unit">km/h</span></div>
+    </div>
+
+    <div class="section-label">Environment</div>
+
+    <div class="stat-card green">
+      <div class="stat-label">Temperature</div>
+      <div class="stat-value" id="val-temp">--<span class="unit">°C</span></div>
+    </div>
+
+    <div class="stat-card">
+      <div class="stat-label">Humidity</div>
+      <div class="stat-value" id="val-hum">--<span class="unit">%</span></div>
+    </div>
+
+    <div class="section-label">GPS</div>
+
+    <div class="coords-box" id="coords-box">
+      <div class="coord-row">
+        <span class="coord-key">Lat</span>
+        <span class="coord-val" id="val-lat">--</span>
+      </div>
+      <div class="coord-row">
+        <span class="coord-key">Lon</span>
+        <span class="coord-val" id="val-lon">--</span>
+      </div>
+    </div>
+
+    <div class="status-row">
+      <div class="status-indicator" id="dot-fix"></div>
+      <span class="status-label">GPS Fix</span>
+      <span class="status-val" id="val-fix">--</span>
+    </div>
+
+    <div class="status-row">
+      <div class="status-indicator online"></div>
+      <span class="status-label">Satellites</span>
+      <span class="status-val" id="val-sats">--</span>
+    </div>
+
+    <div class="section-label">Network</div>
+
+    <div class="status-row">
+      <div class="status-indicator online" id="dot-gsm"></div>
+      <span class="status-label">GSM (ppp0)</span>
+      <span class="status-val" id="val-gsm-ip">--</span>
+    </div>
+
+    <div class="status-row">
+      <div class="status-indicator online" id="dot-fb"></div>
+      <span class="status-label">Firebase</span>
+      <span class="status-val" id="val-fb">LIVE</span>
+    </div>
+
+    <div class="last-update" id="last-update">
+      <span class="lu-label">Last Update</span>
+      <span class="lu-val" id="val-update">--</span>
+    </div>
+
+  </div>
+
+  <!-- Map -->
+  <div class="map-container">
+    <div id="map"></div>
+
+    <!-- Top badge -->
+    <div class="map-badge">
+      <div class="badge-dot"></div>
+      <span id="badge-text">ACQUIRING SIGNAL</span>
+    </div>
+
+    <!-- No fix overlay -->
+    <div id="no-fix-overlay">
+      <div class="no-fix-icon">🛰️</div>
+      <div class="no-fix-title">ACQUIRING GPS</div>
+      <div class="no-fix-sub">Waiting for satellite fix...</div>
+      <div class="sats-badge" id="overlay-sats">Satellites: 0</div>
+    </div>
+
+    <!-- Speed widget -->
+    <div class="speed-widget">
+      <div class="speed-num" id="speed-big">0</div>
+      <div class="speed-unit">km / h</div>
+    </div>
+
+    <!-- Trail info -->
+    <div class="trail-info" id="trail-info">Trail: 0 pts</div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════ -->
+<!-- Google Maps API — replace YOUR_GMAPS_KEY           -->
+<!-- ═══════════════════════════════════════════════════ -->
+<script>
+// ──────────────────────────────────────────────
+//  🔧 CONFIGURATION — EDIT THESE
+// ──────────────────────────────────────────────
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyAOYFpd52wCkPNLws0xMYKDPRlf_BiCq4s",
+  authDomain: "iot-tracker-27c6e.firebaseapp.com",
+  databaseURL: "https://iot-tracker-27c6e-default-rtdb.firebaseio.com",
+  projectId: "iot-tracker-27c6e",
+  storageBucket: "iot-tracker-27c6e.firebasestorage.app",
+  messagingSenderId: "521019214351",
+  appId: "1:521019214351:web:b41636ec39b37c59ccf17a",
+  measurementId: "G-J4BXFFQBLE"
+};
+
+const COLLECTION_NAME = "vehicle_data";   // Firestore collection name
+const GMAPS_KEY       = "AIzaSyDXK8q2RC9u2rXuNOFl82WwnWHpmPg-Ljo"; // Google Maps API key
+const TRAIL_MAX_PTS   = 50;               // max trail points on map
+
+// ──────────────────────────────────────────────
+//  INIT FIREBASE
+// ──────────────────────────────────────────────
+firebase.initializeApp(FIREBASE_CONFIG);
+const db = firebase.firestore();
+
+// ──────────────────────────────────────────────
+//  CLOCK
+// ──────────────────────────────────────────────
+setInterval(() => {
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    now.toLocaleTimeString('en-IN', { hour12: false });
+}, 1000);
+
+// ──────────────────────────────────────────────
+//  LOAD GOOGLE MAPS DYNAMICALLY
+// ──────────────────────────────────────────────
+let map, marker, trailPolyline, trailCoords = [];
+let lastHeading = 0;
+
+function loadGoogleMaps() {
+  const script = document.createElement('script');
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${GMAPS_KEY}&callback=initMap`;
+  script.async = true;
+  document.head.appendChild(script);
+}
+
+// ──────────────────────────────────────────────
+//  CUSTOM CAR MARKER SVG (Uber-style)
+// ──────────────────────────────────────────────
+function carMarkerIcon(heading) {
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
+      <g transform="rotate(${heading}, 20, 20)">
+        <!-- Shadow -->
+        <ellipse cx="20" cy="34" rx="8" ry="3" fill="rgba(0,0,0,0.3)"/>
+        <!-- Car body -->
+        <rect x="12" y="10" width="16" height="22" rx="5" fill="#00e5ff"/>
+        <!-- Windshield -->
+        <rect x="14" y="12" width="12" height="8" rx="2" fill="rgba(10,13,19,0.7)"/>
+        <!-- Direction arrow -->
+        <polygon points="20,4 25,12 15,12" fill="#00e5ff"/>
+        <!-- Glow -->
+        <rect x="12" y="10" width="16" height="22" rx="5"
+              fill="none" stroke="rgba(0,229,255,0.6)" stroke-width="1.5"/>
+      </g>
+    </svg>`;
+  return {
+    url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(svg),
+    scaledSize: new google.maps.Size(40, 40),
+    anchor: new google.maps.Point(20, 20),
+  };
+}
+
+// ──────────────────────────────────────────────
+//  MAP INIT
+// ──────────────────────────────────────────────
+function initMap() {
+  // Dark map style (Uber-like)
+  const darkStyle = [
+    { elementType: 'geometry', stylers: [{ color: '#0a0d13' }] },
+    { elementType: 'labels.text.stroke', stylers: [{ color: '#0a0d13' }] },
+    { elementType: 'labels.text.fill', stylers: [{ color: '#5a6480' }] },
+    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#161c2d' }] },
+    { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#1e2535' }] },
+    { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#8a9bb0' }] },
+    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#1e2d45' }] },
+    { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#243552' }] },
+    { featureType: 'road.highway', elementType: 'labels.text.fill', stylers: [{ color: '#aebfd0' }] },
+    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#060a12' }] },
+    { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#3a4a60' }] },
+    { featureType: 'poi', elementType: 'geometry', stylers: [{ color: '#0f1520' }] },
+    { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#0a1a10' }] },
+    { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#0f1520' }] },
+    { featureType: 'administrative', elementType: 'geometry.stroke', stylers: [{ color: '#1e2535' }] },
+    { featureType: 'administrative.land_parcel', elementType: 'labels.text.fill', stylers: [{ color: '#3a4a60' }] },
+  ];
+
+  map = new google.maps.Map(document.getElementById('map'), {
+    zoom: 16,
+    center: { lat: 19.2183, lng: 73.0862 }, // Kalyan default
+    styles: darkStyle,
+    disableDefaultUI: true,
+    zoomControl: true,
+    zoomControlOptions: { position: google.maps.ControlPosition.RIGHT_CENTER },
+  });
+
+  // Marker
+  marker = new google.maps.Marker({
+    map,
+    icon: carMarkerIcon(0),
+    optimized: false,
+    title: 'IoT Tracker',
+  });
+
+  // Trail polyline
+  trailPolyline = new google.maps.Polyline({
+    map,
+    path: [],
+    strokeColor: '#00e5ff',
+    strokeOpacity: 0.5,
+    strokeWeight: 2,
+    geodesic: true,
+  });
+
+  // Done — start Firebase listener
+  document.getElementById('connecting').classList.add('hidden');
+  startFirestoreListener();
+}
+
+// ──────────────────────────────────────────────
+//  HEADING CALCULATION
+// ──────────────────────────────────────────────
+function calcHeading(from, to) {
+  if (!from) return 0;
+  const dLon = (to.lng - from.lng) * Math.PI / 180;
+  const lat1 = from.lat * Math.PI / 180;
+  const lat2 = to.lat * Math.PI / 180;
+  const y = Math.sin(dLon) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) -
+            Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+  return ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
+}
+
+// ──────────────────────────────────────────────
+//  SMOOTH MARKER ANIMATION
+// ──────────────────────────────────────────────
+function animateMarker(targetPos, targetHeading) {
+  const startPos = marker.getPosition();
+  if (!startPos) {
+    marker.setPosition(targetPos);
+    marker.setIcon(carMarkerIcon(targetHeading));
+    return;
+  }
+
+  const startLat = startPos.lat();
+  const startLng = startPos.lng();
+  const startHdg = lastHeading;
+  const duration = 1200; // ms
+  const start = performance.now();
+
+  function step(now) {
+    const t = Math.min((now - start) / duration, 1);
+    const ease = t < 0.5 ? 2*t*t : -1+(4-2*t)*t; // ease in-out
+
+    const lat = startLat + (targetPos.lat() - startLat) * ease;
+    const lng = startLng + (targetPos.lng() - startLng) * ease;
+
+    // Shortest angle rotation
+    let dh = targetHeading - startHdg;
+    if (dh > 180) dh -= 360;
+    if (dh < -180) dh += 360;
+    const hdg = startHdg + dh * ease;
+
+    marker.setPosition(new google.maps.LatLng(lat, lng));
+    marker.setIcon(carMarkerIcon(hdg));
+
+    if (t < 1) requestAnimationFrame(step);
+    else {
+      lastHeading = targetHeading;
+      map.panTo(new google.maps.LatLng(lat, lng));
+    }
+  }
+  requestAnimationFrame(step);
+}
+
+// ──────────────────────────────────────────────
+//  UI UPDATERS
+// ──────────────────────────────────────────────
+function flashCard(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove('flash');
+  void el.offsetWidth;
+  el.classList.add('flash');
+}
+
+function setVal(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = val;
+}
+
+function updateUI(data) {
+  const lat     = data.latitude  || 0;
+  const lon     = data.longitude || 0;
+  const speed   = data.speed_kmh || 0;
+  const temp    = data.temperature;
+  const hum     = data.humidity;
+  const sats    = data.satellites || 0;
+  const hasFix  = data.has_fix === true;
+  const gsmIp   = data.gsm_ip || '--';
+
+  // Coords
+  setVal('val-lat', lat.toFixed(6));
+  setVal('val-lon', lon.toFixed(6));
+
+  // Speed
+  const spStr = speed.toFixed(1);
+  document.getElementById('val-speed').innerHTML = `${spStr}<span class="unit">km/h</span>`;
+  document.getElementById('speed-big').textContent = Math.round(speed);
+
+  // Temp / Hum
+  if (temp !== null && temp !== undefined) {
+    document.getElementById('val-temp').innerHTML = `${temp.toFixed(1)}<span class="unit">°C</span>`;
+  }
+  if (hum !== null && hum !== undefined) {
+    document.getElementById('val-hum').innerHTML = `${hum.toFixed(1)}<span class="unit">%</span>`;
+  }
+
+  // Satellites
+  setVal('val-sats', `${sats} sats`);
+  setVal('overlay-sats', `Satellites: ${sats}`);
+
+  // GPS fix
+  const dotFix = document.getElementById('dot-fix');
+  setVal('val-fix', hasFix ? 'ACTIVE' : 'NO FIX');
+  dotFix.className = 'status-indicator ' + (hasFix ? 'online' : 'offline');
+
+  // GSM IP
+  setVal('val-gsm-ip', gsmIp);
+
+  // No-fix overlay
+  const overlay = document.getElementById('no-fix-overlay');
+  if (hasFix) overlay.classList.add('hidden');
+  else overlay.classList.remove('hidden');
+
+  // Badge
+  setVal('badge-text', hasFix
+    ? `${lat.toFixed(5)}, ${lon.toFixed(5)}`
+    : 'ACQUIRING SIGNAL');
+
+  // Last update
+  const now = new Date();
+  setVal('val-update', now.toLocaleTimeString('en-IN', { hour12: false }));
+
+  // Header
+  setVal('hdr-status', hasFix ? 'LIVE · GPS FIX' : 'LIVE · NO FIX');
+
+  // Flash cards
+  flashCard('card-speed');
+  flashCard('coords-box');
+
+  // Map marker
+  if (hasFix && lat !== 0 && lon !== 0) {
+    const newPos = new google.maps.LatLng(lat, lon);
+    const prevPos = trailCoords.length
+      ? trailCoords[trailCoords.length - 1]
+      : null;
+
+    const heading = prevPos ? calcHeading(
+      { lat: prevPos.lat(), lng: prevPos.lng() },
+      { lat, lng: lon }
+    ) : lastHeading;
+
+    animateMarker(newPos, heading);
+
+    // Trail
+    trailCoords.push(newPos);
+    if (trailCoords.length > TRAIL_MAX_PTS)
+      trailCoords.shift();
+    trailPolyline.setPath(trailCoords);
+    setVal('trail-info', `Trail: ${trailCoords.length} pts`);
+  }
+}
+
+// ──────────────────────────────────────────────
+//  FIRESTORE REAL-TIME LISTENER
+// ──────────────────────────────────────────────
+function startFirestoreListener() {
+  db.collection(COLLECTION_NAME)
+    .orderBy('timestamp', 'desc')
+    .limit(1)
+    .onSnapshot(snapshot => {
+      snapshot.forEach(doc => {
+        updateUI(doc.data());
+      });
+    }, err => {
+      console.error('Firestore error:', err);
+      setVal('hdr-status', 'ERROR');
+      document.getElementById('dot-fb').className = 'status-indicator offline';
+      setVal('val-fb', 'ERROR');
+    });
+}
+
+// ──────────────────────────────────────────────
+//  START
+// ──────────────────────────────────────────────
+loadGoogleMaps();
+</script>
+
+</body>
+</html>
