@@ -431,64 +431,6 @@
     ::-webkit-scrollbar { width: 4px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: var(--border); }
-
-    /* ── TAB BUTTONS ── */
-    .tab-btn {
-      background: transparent;
-      border: 1px solid var(--border);
-      color: var(--muted);
-      padding: 5px 14px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 11px;
-      letter-spacing: 1px;
-      transition: all 0.2s;
-    }
-    .tab-btn.active {
-      background: var(--accent);
-      color: var(--bg);
-      border-color: var(--accent);
-      font-weight: 700;
-    }
-
-    /* ── HISTORY ROWS ── */
-    .hist-row {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px 14px;
-      margin-bottom: 6px;
-      transition: border-color 0.2s;
-    }
-    .hist-row:hover { border-color: var(--accent); }
-    .hist-row.overspeed-row { border-color: var(--red); }
-    .hist-time {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 12px;
-      color: var(--accent);
-      margin-bottom: 4px;
-    }
-    .hist-coords {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 11px;
-      color: var(--text);
-      margin-bottom: 4px;
-    }
-    .hist-meta {
-      display: flex;
-      gap: 12px;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 11px;
-      color: var(--muted);
-    }
-    .hist-loading {
-      text-align: center;
-      color: var(--muted);
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 12px;
-      padding: 40px;
-    }
   </style>
 </head>
 <body>
@@ -505,10 +447,6 @@
     <div class="logo-icon">🛰️</div>
     <div class="logo-text">IOT<span>TRACKER</span></div>
   </div>
-  <div style="display:flex;gap:8px;align-items:center;">
-    <button class="tab-btn active" id="tab-live" onclick="switchTab('live')">LIVE</button>
-    <button class="tab-btn" id="tab-hist" onclick="switchTab('hist')">HISTORY</button>
-  </div>
   <div class="header-status">
     <div class="pulse-dot" id="hdr-dot"></div>
     <span id="hdr-status">CONNECTING</span>
@@ -516,15 +454,8 @@
   <div class="clock" id="clock">--:--:--</div>
 </header>
 
-<!-- Overspeed Banner -->
-<div id="overspeed-banner" style="display:none;background:#ff3d5a22;border-bottom:2px solid #ff3d5a;padding:8px 20px;align-items:center;gap:10px;flex-shrink:0;">
-  <span style="font-size:20px;">🚨</span>
-  <span style="font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:2px;color:#ff3d5a;">OVERSPEED ALERT</span>
-  <span id="overspeed-speed" style="font-family:'JetBrains Mono',monospace;color:#ff3d5a;font-size:14px;"></span>
-</div>
-
 <!-- Main -->
-<div id="view-live" class="main">
+<div class="main">
 
   <!-- Sidebar -->
   <div class="sidebar">
@@ -534,12 +465,6 @@
     <div class="stat-card orange" id="card-speed">
       <div class="stat-label">Speed</div>
       <div class="stat-value big" id="val-speed">--<span class="unit">km/h</span></div>
-    </div>
-
-    <div class="status-row">
-      <div class="status-indicator warning" id="dot-trip"></div>
-      <span class="status-label">Trip Status</span>
-      <span class="status-val" id="val-trip">--</span>
     </div>
 
     <div class="section-label">Environment</div>
@@ -552,12 +477,6 @@
     <div class="stat-card">
       <div class="stat-label">Humidity</div>
       <div class="stat-value" id="val-hum">--<span class="unit">%</span></div>
-    </div>
-
-    <div class="status-row">
-      <div class="status-indicator online" id="dot-dht"></div>
-      <span class="status-label">DHT22 Sensor</span>
-      <span class="status-val" id="val-dht-status">--</span>
     </div>
 
     <div class="section-label">GPS</div>
@@ -609,31 +528,31 @@
   <!-- Map -->
   <div class="map-container">
     <div id="map"></div>
+
+    <!-- Top badge -->
     <div class="map-badge">
       <div class="badge-dot"></div>
       <span id="badge-text">ACQUIRING SIGNAL</span>
     </div>
+
+    <!-- No fix overlay -->
     <div id="no-fix-overlay">
       <div class="no-fix-icon">🛰️</div>
       <div class="no-fix-title">ACQUIRING GPS</div>
       <div class="no-fix-sub">Waiting for satellite fix...</div>
       <div class="sats-badge" id="overlay-sats">Satellites: 0</div>
     </div>
+
+    <!-- Speed widget -->
     <div class="speed-widget">
       <div class="speed-num" id="speed-big">0</div>
       <div class="speed-unit">km / h</div>
     </div>
-    <div class="trail-info" id="trail-info">Trail: 0 pts</div>
-  </div>
-</div>
 
-<!-- History View -->
-<div id="view-hist" class="main" style="display:none;flex-direction:column;overflow:hidden;">
-  <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
-    <span style="font-size:13px;letter-spacing:2px;color:var(--muted);text-transform:uppercase;">Last 50 Records — vehicle_history</span>
-    <button onclick="historyLoaded=false;loadHistory();" style="background:var(--card);border:1px solid var(--border);color:var(--accent);padding:6px 14px;border-radius:8px;cursor:pointer;font-family:'JetBrains Mono',monospace;font-size:11px;">↻ Refresh</button>
+    <!-- Trail info -->
+    <div class="trail-info" id="trail-info">Trail: 0 pts</div>
+
   </div>
-  <div id="history-list" style="flex:1;overflow-y:auto;padding:8px 12px;"></div>
 </div>
 
 <!-- ═══════════════════════════════════════════════════ -->
@@ -678,6 +597,30 @@ setInterval(() => {
 // ──────────────────────────────────────────────
 let map, marker, trailPolyline, trailCoords = [];
 let lastHeading = 0;
+
+// ── GPS CHANGE DETECTION ──
+// Tracks last known GPS position to detect real movement
+let lastKnownLat = null;
+let lastKnownLon = null;
+const MIN_MOVE_METERS = 3; // ignore GPS updates less than 3 metres apart
+
+// Haversine distance in metres between two lat/lon points
+function gpsDistanceMeters(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+            Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) *
+            Math.sin(dLon/2) * Math.sin(dLon/2);
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+// Returns true only if GPS position has actually changed meaningfully
+function gpsActuallyMoved(lat, lon) {
+  if (lastKnownLat === null) return true; // first fix
+  const dist = gpsDistanceMeters(lastKnownLat, lastKnownLon, lat, lon);
+  return dist >= MIN_MOVE_METERS;
+}
 
 function loadGoogleMaps() {
   const script = document.createElement('script');
@@ -880,28 +823,6 @@ function updateUI(data) {
   // GSM IP
   setVal('val-gsm-ip', gsmIp);
 
-  // Trip status
-  const tripActive = data.trip_active === true;
-  setVal('val-trip', tripActive ? 'ACTIVE 🚗' : 'idle');
-  document.getElementById('dot-trip').className =
-    'status-indicator ' + (tripActive ? 'online' : 'warning');
-
-  // Overspeed alert
-  const overspeed = data.overspeed === true;
-  const ovEl = document.getElementById('overspeed-banner');
-  if (overspeed) {
-    ovEl.style.display = 'flex';
-    setVal('overspeed-speed', `${speed.toFixed(1)} km/h`);
-  } else {
-    ovEl.style.display = 'none';
-  }
-
-  // DHT sensor health
-  const dhtOk = data.dht_ok !== false;
-  setVal('val-dht-status', dhtOk ? 'OK' : 'ERR ❌');
-  document.getElementById('dot-dht').className =
-    'status-indicator ' + (dhtOk ? 'online' : 'offline');
-
   // No-fix overlay
   const overlay = document.getElementById('no-fix-overlay');
   if (hasFix) overlay.classList.add('hidden');
@@ -923,109 +844,58 @@ function updateUI(data) {
   flashCard('card-speed');
   flashCard('coords-box');
 
-  // Map marker
-  if (hasFix && lat !== 0 && lon !== 0) {
-    const newPos = new google.maps.LatLng(lat, lon);
-    const prevPos = trailCoords.length
-      ? trailCoords[trailCoords.length - 1]
-      : null;
+  // Map marker — ONLY update if GPS coordinates actually changed
+  // This prevents DHT22/sensor updates from moving the marker
+  if (hasFix && lat !== 0 && lon !== 0 && gpsActuallyMoved(lat, lon)) {
 
-    const heading = prevPos ? calcHeading(
-      { lat: prevPos.lat(), lng: prevPos.lng() },
+    const newPos = new google.maps.LatLng(lat, lon);
+
+    // Calculate heading from previous real GPS position
+    const heading = (lastKnownLat !== null) ? calcHeading(
+      { lat: lastKnownLat, lng: lastKnownLon },
       { lat, lng: lon }
     ) : lastHeading;
 
+    // Update last known GPS position
+    lastKnownLat = lat;
+    lastKnownLon = lon;
+
     animateMarker(newPos, heading);
 
-    // Trail
+    // Trail — only real GPS movement adds points
     trailCoords.push(newPos);
     if (trailCoords.length > TRAIL_MAX_PTS)
       trailCoords.shift();
     trailPolyline.setPath(trailCoords);
     setVal('trail-info', `Trail: ${trailCoords.length} pts`);
+
+  } else if (hasFix && lat !== 0 && lon !== 0 && lastKnownLat === null) {
+    // First fix — place marker without animating
+    lastKnownLat = lat;
+    lastKnownLon = lon;
+    marker.setPosition(new google.maps.LatLng(lat, lon));
+    marker.setIcon(carMarkerIcon(0));
+    map.panTo(new google.maps.LatLng(lat, lon));
   }
 }
 
 // ──────────────────────────────────────────────
-//  FIRESTORE LIVE LISTENER
-//  Reads from vehicle_data/live document (single doc, no quota issues)
+//  FIRESTORE REAL-TIME LISTENER
 // ──────────────────────────────────────────────
 function startFirestoreListener() {
-  // Live doc listener
-  db.collection(COLLECTION_NAME).doc('live')
-    .onSnapshot(doc => {
-      if (doc.exists) updateUI(doc.data());
+  db.collection(COLLECTION_NAME)
+    .orderBy('timestamp', 'desc')
+    .limit(1)
+    .onSnapshot(snapshot => {
+      snapshot.forEach(doc => {
+        updateUI(doc.data());
+      });
     }, err => {
       console.error('Firestore error:', err);
       setVal('hdr-status', 'ERROR');
       document.getElementById('dot-fb').className = 'status-indicator offline';
       setVal('val-fb', 'ERROR');
     });
-}
-
-// ──────────────────────────────────────────────
-//  HISTORY TAB — loads last 50 records
-// ──────────────────────────────────────────────
-let historyLoaded = false;
-
-function loadHistory() {
-  if (historyLoaded) return;
-  historyLoaded = true;
-
-  const list = document.getElementById('history-list');
-  list.innerHTML = '<div class="hist-loading">Loading history...</div>';
-
-  db.collection('vehicle_history')
-    .orderBy('timestamp', 'desc')
-    .limit(50)
-    .get()
-    .then(snapshot => {
-      list.innerHTML = '';
-      if (snapshot.empty) {
-        list.innerHTML = '<div class="hist-loading">No history yet.</div>';
-        return;
-      }
-      snapshot.forEach(doc => {
-        const d   = doc.data();
-        const ts  = d.timestamp?.toDate
-                  ? d.timestamp.toDate().toLocaleTimeString('en-IN', {hour12:false})
-                  : '--:--:--';
-        const lat = (d.latitude  || 0).toFixed(5);
-        const lon = (d.longitude || 0).toFixed(5);
-        const spd = (d.speed_kmh || 0).toFixed(1);
-        const fix = d.has_fix ? '✅' : '❌';
-        const ovr = d.overspeed ? '🚨' : '';
-        const trp = d.trip_active ? '🚗' : '';
-
-        const row = document.createElement('div');
-        row.className = 'hist-row' + (d.overspeed ? ' overspeed-row' : '');
-        row.innerHTML = `
-          <div class="hist-time">${ts} ${ovr}${trp}</div>
-          <div class="hist-coords">${lat}, ${lon}</div>
-          <div class="hist-meta">
-            <span>${spd} km/h</span>
-            <span>Fix:${fix}</span>
-            <span>${d.temperature ?? '--'}°C</span>
-            <span>${d.humidity ?? '--'}%</span>
-          </div>`;
-        list.appendChild(row);
-      });
-    })
-    .catch(err => {
-      list.innerHTML = `<div class="hist-loading">Error: ${err.message}</div>`;
-    });
-}
-
-// ──────────────────────────────────────────────
-//  TAB SWITCHING
-// ──────────────────────────────────────────────
-function switchTab(tab) {
-  document.getElementById('tab-live').classList.toggle('active', tab === 'live');
-  document.getElementById('tab-hist').classList.toggle('active', tab === 'hist');
-  document.getElementById('view-live').style.display = tab === 'live' ? 'flex' : 'none';
-  document.getElementById('view-hist').style.display = tab === 'hist' ? 'flex' : 'none';
-  if (tab === 'hist') { loadHistory(); }
-  else { historyLoaded = false; } // allow refresh on re-open
 }
 
 // ──────────────────────────────────────────────
