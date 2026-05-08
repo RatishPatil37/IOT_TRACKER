@@ -1,0 +1,19 @@
+# Firebase Service Account Keys
+*.json
+!package.json
+!package-lock.json
+
+# Environment Variables
+.env
+.env.local
+
+# IDEs
+.vscode/
+.idea/
+
+# OS Files
+Thumbs.db
+.DS_Store
+
+# Node
+node_modules/

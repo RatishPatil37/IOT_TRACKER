@@ -1,0 +1,111 @@
+import time
+import threading
+import RPi.GPIO as GPIO
+import firebase_admin
+from firebase_admin import credentials, db
+
+# Import your modular sensors
+from sensors.env_sht31 import get_temp_humidity
+from sensors.air_pms5003 import get_air_quality
+from sensors.alert_hall import setup_hall_sensor
+from ui.display_oled import update_display
+from sensors.gps_m8n import get_gps_data
+from sensors.motion_mpu6050 import init_mpu6050, check_for_crash
+
+# --- FIREBASE SETUP ---
+print("Initializing Firebase...")
+cred = credentials.Certificate("firebase-key.json")
+firebase_admin.initialize_app(cred, {
+    'databaseURL': 'https://vehicle-iot-tracker-default-rtdb.asia-southeast1.firebasedatabase.app'
+})
+# Reference your specific vehicle path
+vehicle_ref = db.reference("vehicles/vehicle_01")
+
+# Global dictionary for threads to update
+telemetry_data = {
+    "latitude": 0.0,
+    "longitude": 0.0,
+    "speed": 0,
+    "temperature": 0,
+    "humidity": 0,
+    "aqi": 0,
+    "crash_status": False,
+    "tampered": False
+}
+
+# --- BACKGROUND THREADS ---
+
+def gps_thread_loop():
+    """Continuously updates the global location."""
+    global telemetry_data
+    while True:
+        gps_info = get_gps_data()
+        if gps_info["status"] == "FIX_OK":
+            telemetry_data["latitude"] = gps_info["latitude"]
+            telemetry_data["longitude"] = gps_info["longitude"]
+            telemetry_data["speed"] = gps_info["speed_knots"]
+        time.sleep(1)
+
+def crash_monitor_thread():
+    """Continuously watches for sudden G-force spikes."""
+    global telemetry_data
+    init_mpu6050()
+    while True:
+        crash_info = check_for_crash(threshold=2.5)
+        if crash_info["crash_detected"]:
+            telemetry_data["crash_status"] = True
+            # Update Firebase immediately on crash
+            vehicle_ref.update({"crash_status": True})
+            print("CRASH DETECTED! Firebase updated.")
+            time.sleep(5) 
+        time.sleep(0.1)
+
+# --- INTERRUPTS ---
+
+def removal_alert_callback(channel):
+    """Instantly updates Firebase if the mount breaks."""
+    global telemetry_data
+    telemetry_data["tampered"] = True
+    vehicle_ref.update({"tampered": True})
+    print("DEVICE REMOVED! Alert sent to Firebase.")
+
+# --- MAIN LOOP ---
+
+def main():
+    print("Starting IoT Tracking System with Firebase...")
+    
+    setup_hall_sensor(removal_alert_callback)
+    
+    threading.Thread(target=gps_thread_loop, daemon=True).start()
+    threading.Thread(target=crash_monitor_thread, daemon=True).start()
+    
+    try:
+        while True:
+            # 1. Gather live environment data
+            env_info = get_temp_humidity()
+            telemetry_data["temperature"] = env_info.get("temperature", 0)
+            telemetry_data["humidity"] = env_info.get("humidity", 0)
+            
+            air_info = get_air_quality()
+            telemetry_data["aqi"] = air_info.get("pm2_5", 0) # Using PM2.5 as general AQI
+            
+            # 2. Push real data to Firebase
+            vehicle_ref.set(telemetry_data)
+            print("Firebase Updated:", telemetry_data)
+            
+            # 3. Update the OLED screen
+            update_display(
+                gps_status="OK" if telemetry_data["latitude"] != 0.0 else "SEARCHING",
+                network_status="ONLINE",
+                battery_level=100 # Add your ADC battery function here later
+            )
+            
+            time.sleep(5)
+            
+    except KeyboardInterrupt:
+        print("\nSystem shutting down...")
+    finally:
+        GPIO.cleanup()
+
+if __name__ == "__main__":
+    main()

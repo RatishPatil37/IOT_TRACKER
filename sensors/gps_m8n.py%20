@@ -1,0 +1,26 @@
+import serial
+import pynmea2
+
+def get_gps_data(port='/dev/ttyUSB1', baudrate=9600):
+    """Reads and parses NMEA data from the GPS module."""
+    try:
+        # Open serial connection to the GPS
+        gps_serial = serial.Serial(port, baudrate, timeout=1)
+        
+        # Read a line of data
+        line = gps_serial.readline().decode('utf-8', errors='ignore')
+        
+        # We only care about the RMC (Recommended Minimum) sentence for location and speed
+        if line.startswith('$GPRMC') or line.startswith('$GNRMC'):
+            msg = pynmea2.parse(line)
+            if msg.status == 'A': # 'A' means active/valid fix
+                return {
+                    "latitude": msg.latitude,
+                    "longitude": msg.longitude,
+                    "speed_knots": msg.spd_over_grnd,
+                    "status": "FIX_OK"
+                }
+        return {"latitude": None, "longitude": None, "speed_knots": 0, "status": "SEARCHING"}
+        
+    except Exception as e:
+        return {"latitude": None, "longitude": None, "speed_knots": 0, "status": f"Error: {e}"}
